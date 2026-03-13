@@ -94,38 +94,38 @@ def _build_filters_and_metadata(
     input_filters: Optional[Dict[str, Any]] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Constructs metadata for storage and filters for querying based on session and actor identifiers.
+    根据会话标识与参与者标识，构造用于存储的元数据以及用于查询的过滤条件。
 
-    This helper supports multiple session identifiers (`user_id`, `agent_id`, and/or `run_id`)
-    for flexible session scoping and optionally narrows queries to a specific `actor_id`. It returns two dicts:
+    本辅助函数支持多种会话标识（`user_id`、`agent_id` 和/或 `run_id`），用于灵活的会话范围控制，
+    并可选择将查询限定到指定的 `actor_id`。返回两个字典：
 
-    1. `base_metadata_template`: Used as a template for metadata when storing new memories.
-       It includes all provided session identifier(s) and any `input_metadata`.
-    2. `effective_query_filters`: Used for querying existing memories. It includes all
-       provided session identifier(s), any `input_filters`, and a resolved actor
-       identifier for targeted filtering if specified by any actor-related inputs.
+    1. `base_metadata_template`：在存储新记忆时用作元数据模板。
+       包含所有传入的会话标识以及任意 `input_metadata`。
+    2. `effective_query_filters`：用于查询已有记忆的过滤条件。包含所有传入的会话标识、
+       任意 `input_filters`，以及若通过参与者相关入参指定了参与者，则包含解析后的参与者标识，
+       用于定向过滤。
 
-    Actor filtering precedence: explicit `actor_id` arg → `filters["actor_id"]`
-    This resolved actor ID is used for querying but is not added to `base_metadata_template`,
-    as the actor for storage is typically derived from message content at a later stage.
+    参与者过滤优先级：显式参数 `actor_id` → `filters["actor_id"]`。
+    解析得到的参与者 ID 仅用于查询，不会写入 `base_metadata_template`，
+    因为存储时的参与者通常在后续阶段由消息内容推导得出。
 
     Args:
-        user_id (Optional[str]): User identifier, for session scoping.
-        agent_id (Optional[str]): Agent identifier, for session scoping.
-        run_id (Optional[str]): Run identifier, for session scoping.
-        actor_id (Optional[str]): Explicit actor identifier, used as a potential source for
-            actor-specific filtering. See actor resolution precedence in the main description.
-        input_metadata (Optional[Dict[str, Any]]): Base dictionary to be augmented with
-            session identifiers for the storage metadata template. Defaults to an empty dict.
-        input_filters (Optional[Dict[str, Any]]): Base dictionary to be augmented with
-            session and actor identifiers for query filters. Defaults to an empty dict.
+        user_id (Optional[str]): 用户标识，用于会话范围。
+        agent_id (Optional[str]): 智能体标识，用于会话范围。
+        run_id (Optional[str]): 运行标识，用于会话范围。
+        actor_id (Optional[str]): 显式参与者标识，作为参与者过滤的可选来源。
+            参与者解析优先级见上文说明。
+        input_metadata (Optional[Dict[str, Any]]): 作为存储元数据模板的基础字典，
+            将用会话标识进行补充。默认为空字典。
+        input_filters (Optional[Dict[str, Any]]): 作为查询过滤条件的基础字典，
+            将用会话标识与参与者标识进行补充。默认为空字典。
 
     Returns:
-        tuple[Dict[str, Any], Dict[str, Any]]: A tuple containing:
-            - base_metadata_template (Dict[str, Any]): Metadata template for storing memories,
-              scoped to the provided session(s).
-            - effective_query_filters (Dict[str, Any]): Filters for querying memories,
-              scoped to the provided session(s) and potentially a resolved actor.
+        tuple[Dict[str, Any], Dict[str, Any]]: 二元组，包含：
+            - base_metadata_template (Dict[str, Any]): 用于存储记忆的元数据模板，
+              范围由传入的会话标识限定。
+            - effective_query_filters (Dict[str, Any]): 用于查询记忆的过滤条件，
+              范围由传入的会话标识及可能的解析后参与者限定。
     """
 
     base_metadata_template = deepcopy(input_metadata) if input_metadata else {}
@@ -291,41 +291,39 @@ class Memory(MemoryBase):
         prompt: Optional[str] = None,
     ):
         """
-        Create a new memory.
+        创建一条新的记忆。
 
-        Adds new memories scoped to a single session id (e.g. `user_id`, `agent_id`, or `run_id`). One of those ids is required.
+        该方法会根据单个会话 ID（例如 `user_id`、`agent_id` 或 `run_id`）来限定记忆的作用域，
+        三者中至少需要提供一个，用于标识这批记忆归属的会话空间。
 
-        Args:
-            messages (str or List[Dict[str, str]]): The message content or list of messages
-                (e.g., `[{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi"}]`)
-                to be processed and stored.
-            user_id (str, optional): ID of the user creating the memory. Defaults to None.
-            agent_id (str, optional): ID of the agent creating the memory. Defaults to None.
-            run_id (str, optional): ID of the run creating the memory. Defaults to None.
-            metadata (dict, optional): Metadata to store with the memory. Defaults to None.
-            infer (bool, optional): If True (default), an LLM is used to extract key facts from
-                'messages' and decide whether to add, update, or delete related memories.
-                If False, 'messages' are added as raw memories directly.
-            memory_type (str, optional): Specifies the type of memory. Currently, only
-                `MemoryType.PROCEDURAL.value` ("procedural_memory") is explicitly handled for
-                creating procedural memories (typically requires 'agent_id'). Otherwise, memories
-                are treated as general conversational/factual memories.memory_type (str, optional): Type of memory to create. Defaults to None. By default, it creates the short term memories and long term (semantic and episodic) memories. Pass "procedural_memory" to create procedural memories.
-            prompt (str, optional): Prompt to use for the memory creation. Defaults to None.
+        参数说明:
+            messages (str 或 List[Dict[str, str]]): 需要处理并存储的消息内容，可以是字符串，
+                也可以是消息字典列表（例如 `[{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi"}]`）。
+            user_id (str, 可选): 创建记忆的用户 ID，默认值为 None。
+            agent_id (str, 可选): 创建记忆的智能体（Agent）ID，默认值为 None。
+            run_id (str, 可选): 创建记忆的运行/会话 ID，默认值为 None。
+            metadata (dict, 可选): 与记忆一起存储的元数据，默认值为 None。
+            infer (bool, 可选): 当为 True（默认）时，会使用大语言模型从 `messages` 中抽取关键信息，
+                并自动判定是新增、更新还是删除相关记忆；当为 False 时，则直接将 `messages` 作为原始记忆写入。
+            memory_type (str, 可选): 记忆的类型。目前仅显式支持 `MemoryType.PROCEDURAL.value`
+                （"procedural_memory"，程序化记忆），通常需要配合 `agent_id` 使用。
+                未指定该参数时，会创建默认的对话/事实类记忆（包括短期记忆和长期语义、情节记忆）。
+            prompt (str, 可选): 在创建记忆时使用的自定义提示词，默认值为 None。
 
+        返回值:
+            dict: 返回一个描述本次记忆写入结果的字典，一般包含 "results" 键，
+                  其中是受影响记忆条目的列表（如新增、更新等）。
+                  当启用图存储时，还可能包含 "relations" 键。
+                  对于 v1.1+ 的典型返回格式示例:
+                  `{"results": [{"id": "...", "memory": "...", "event": "ADD"}]}`
 
-        Returns:
-            dict: A dictionary containing the result of the memory addition operation, typically
-                  including a list of memory items affected (added, updated) under a "results" key,
-                  and potentially "relations" if graph store is enabled.
-                  Example for v1.1+: `{"results": [{"id": "...", "memory": "...", "event": "ADD"}]}`
-
-        Raises:
-            Mem0ValidationError: If input validation fails (invalid memory_type, messages format, etc.).
-            VectorStoreError: If vector store operations fail.
-            GraphStoreError: If graph store operations fail.
-            EmbeddingError: If embedding generation fails.
-            LLMError: If LLM operations fail.
-            DatabaseError: If database operations fail.
+        可能抛出的异常:
+            Mem0ValidationError: 当输入参数验证失败（例如非法的 memory_type、错误的 messages 格式等）时抛出。
+            VectorStoreError: 当向量存储相关操作失败时抛出。
+            GraphStoreError: 当图存储相关操作失败时抛出。
+            EmbeddingError: 当生成向量嵌入失败时抛出。
+            LLMError: 当调用大语言模型相关操作失败时抛出。
+            DatabaseError: 当底层数据库操作出错时抛出。
         """
 
         processed_metadata, effective_filters = _build_filters_and_metadata(
@@ -1818,36 +1816,36 @@ class AsyncMemory(MemoryBase):
         rerank: bool = True,
     ):
         """
-        Searches for memories based on a query
+        根据查询条件搜索记忆。
+
         Args:
-            query (str): Query to search for.
-            user_id (str, optional): ID of the user to search for. Defaults to None.
-            agent_id (str, optional): ID of the agent to search for. Defaults to None.
-            run_id (str, optional): ID of the run to search for. Defaults to None.
-            limit (int, optional): Limit the number of results. Defaults to 100.
-            filters (dict, optional): Legacy filters to apply to the search. Defaults to None.
-            threshold (float, optional): Minimum score for a memory to be included in the results. Defaults to None.
-            filters (dict, optional): Enhanced metadata filtering with operators:
-                - {"key": "value"} - exact match
-                - {"key": {"eq": "value"}} - equals
-                - {"key": {"ne": "value"}} - not equals  
-                - {"key": {"in": ["val1", "val2"]}} - in list
-                - {"key": {"nin": ["val1", "val2"]}} - not in list
-                - {"key": {"gt": 10}} - greater than
-                - {"key": {"gte": 10}} - greater than or equal
-                - {"key": {"lt": 10}} - less than
-                - {"key": {"lte": 10}} - less than or equal
-                - {"key": {"contains": "text"}} - contains text
-                - {"key": {"icontains": "text"}} - case-insensitive contains
-                - {"key": "*"} - wildcard match (any value)
-                - {"AND": [filter1, filter2]} - logical AND
-                - {"OR": [filter1, filter2]} - logical OR
-                - {"NOT": [filter1]} - logical NOT
+            query (str): 用于搜索的查询内容。
+            user_id (str, optional): 要搜索的用户 ID。默认为 None。
+            agent_id (str, optional): 要搜索的智能体 ID。默认为 None。
+            run_id (str, optional): 要搜索的运行 ID。默认为 None。
+            limit (int, optional): 返回结果数量上限。默认为 100。
+            filters (dict, optional): 旧版过滤条件，将应用于本次搜索。默认为 None。
+            threshold (float, optional): 记忆被纳入结果所需的最低分数。默认为 None。
+            metadata_filters (dict, optional): 增强的元数据过滤，支持以下操作符：
+                - {"key": "value"} - 精确匹配
+                - {"key": {"eq": "value"}} - 等于
+                - {"key": {"ne": "value"}} - 不等于
+                - {"key": {"in": ["val1", "val2"]}} - 在列表中
+                - {"key": {"nin": ["val1", "val2"]}} - 不在列表中
+                - {"key": {"gt": 10}} - 大于
+                - {"key": {"gte": 10}} - 大于等于
+                - {"key": {"lt": 10}} - 小于
+                - {"key": {"lte": 10}} - 小于等于
+                - {"key": {"contains": "text"}} - 包含文本
+                - {"key": {"icontains": "text"}} - 不区分大小写的包含
+                - {"key": "*"} - 通配匹配（任意值）
+                - {"AND": [filter1, filter2]} - 逻辑与
+                - {"OR": [filter1, filter2]} - 逻辑或
+                - {"NOT": [filter1]} - 逻辑非
 
         Returns:
-            dict: A dictionary containing the search results, typically under a "results" key,
-                  and potentially "relations" if graph store is enabled.
-                  Example for v1.1+: `{"results": [{"id": "...", "memory": "...", "score": 0.8, ...}]}`
+            dict: 包含搜索结果的字典，通常有 "results" 键；若启用图存储则可能包含 "relations"。
+                  v1.1+ 示例：`{"results": [{"id": "...", "memory": "...", "score": 0.8, ...}]}`
         """
 
         _, effective_filters = _build_filters_and_metadata(
