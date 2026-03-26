@@ -16,6 +16,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from ark_multimodal_embeddings import ArkMultimodalEmbeddings
+
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ class ExpressCustomerService:
     def __init__(self) -> None:
         """初始化快递客服助手。"""
         self.api_key = self._get_api_key()
-        self.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        self.base_url = "https://ark.cn-beijing.volces.com/api/v3"
 
         self.openai_client: OpenAI | None = None
         self.llm = None
@@ -38,11 +40,11 @@ class ExpressCustomerService:
 
     def _get_api_key(self) -> str:
         """获取 API 密钥并验证。"""
-        api_key = os.getenv("DASHSCOPE_API_KEY")
+        api_key = os.getenv("ARK_API_KEY")
         if not api_key:
             raise ValueError(
-                "未找到 DASHSCOPE_API_KEY 环境变量。\n"
-                "请设置环境变量：export DASHSCOPE_API_KEY='your_api_key_here'"
+                "未找到 ARK_API_KEY 环境变量。\n"
+                "请设置环境变量：export ARK_API_KEY='your_api_key_here'"
             )
         logger.info("API 密钥已加载")
         return api_key
@@ -51,7 +53,7 @@ class ExpressCustomerService:
         """测试 API 连接。"""
         try:
             self.openai_client.chat.completions.create(
-                model="qwen-turbo",
+                model="doubao-seed-2-0-pro-260215",
                 messages=[{"role": "user", "content": "测试连接"}],
                 max_tokens=10,
             )
@@ -80,28 +82,34 @@ class ExpressCustomerService:
                 temperature=0.3,
                 openai_api_key=self.api_key,
                 openai_api_base=self.base_url,
-                model="qwen-turbo",
+                model="doubao-seed-2-0-pro-260215",
             )
             logger.info("LangChain LLM 初始化成功")
 
             # 4. 初始化 Mem0 配置（显式使用本地 PostgreSQL + pgvector 进行持久化）
             from mem0.vector_stores.configs import VectorStoreConfig
 
+            ark_embedding_model = "doubao-embedding-vision-251215"
+            embedding_dims = 1024
+            ark_embeddings = ArkMultimodalEmbeddings(
+                api_key=self.api_key,
+                model=ark_embedding_model,
+                dimensions=embedding_dims,
+            )
+
             config = MemoryConfig(
                 llm=LlmConfig(
                     provider="openai",
                     config={
-                        "model": "qwen-turbo",
+                        "model": "doubao-seed-1-8-251228",
                         "api_key": self.api_key,
                         "openai_base_url": self.base_url,
                     },
                 ),
                 embedder=EmbedderConfig(
-                    provider="openai",
+                    provider="langchain",
                     config={
-                        "model": "text-embedding-v1",
-                        "api_key": self.api_key,
-                        "openai_base_url": self.base_url,
+                        "model": ark_embeddings,
                     },
                 ),
                 vector_store=VectorStoreConfig(
@@ -112,6 +120,7 @@ class ExpressCustomerService:
                         "host": "localhost",
                         "port": 5433,
                         "dbname": "gd25_biz_agent01_python",
+                        "embedding_model_dims": embedding_dims,
                         # 可选：collection_name, embedding_model_dims 等
                     },
                 ),
