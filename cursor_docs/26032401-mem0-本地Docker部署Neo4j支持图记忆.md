@@ -85,6 +85,14 @@ docker compose -f docker-compose.neo4j.yml down
 
 ## 4. 在 mem0 中配置 Neo4j 图存储
 
+> 与当前 `GD25/express_customer_service copy.py` 对齐：该脚本默认读取以下环境变量，
+> 未设置时会使用 `bolt://localhost:7687`、`neo4j`、`mem0graph`、`neo4j` 作为默认值。
+>
+> - `NEO4J_URL`
+> - `NEO4J_USERNAME`
+> - `NEO4J_PASSWORD`
+> - `NEO4J_DATABASE`
+
 ### 4.1 Python 配置示例
 
 ```python

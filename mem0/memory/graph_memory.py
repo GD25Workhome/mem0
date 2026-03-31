@@ -194,7 +194,7 @@ class MemoryGraph:
         return final_results
 
     def _retrieve_nodes_from_data(self, data, filters):
-        """Extracts all the entities mentioned in the query."""
+        """Extracts all the entities mentioned in the query. 借助模型和tools工具，提取文本中的实体和实体类型。"""
         _tools = [EXTRACT_ENTITIES_TOOL]
         if self.llm_provider in ["azure_openai_structured", "openai_structured"]:
             _tools = [EXTRACT_ENTITIES_STRUCT_TOOL]

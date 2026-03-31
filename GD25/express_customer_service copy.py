@@ -88,6 +88,7 @@ class ExpressCustomerService:
 
             # 4. 初始化 Mem0 配置（显式使用本地 PostgreSQL + pgvector 进行持久化）
             from mem0.vector_stores.configs import VectorStoreConfig
+            from mem0.graphs.configs import GraphStoreConfig
 
             ark_embedding_model = "doubao-embedding-vision-251215"
             embedding_dims = 1024
@@ -124,6 +125,14 @@ class ExpressCustomerService:
                         # 可选：collection_name, embedding_model_dims 等
                     },
                 ),
+                graph_store=GraphStoreConfig(
+                    provider="neo4j",
+                    config={
+                        "url": os.getenv("NEO4J_URL", "bolt://localhost:8687"),
+                        "username": os.getenv("NEO4J_USERNAME", "neo4j"),
+                        "password": os.getenv("NEO4J_PASSWORD", "mem0graph"),
+                    },
+                )
             )
 
             # 5. 初始化 Mem0
@@ -270,7 +279,7 @@ def main() -> None:
     except Exception as e:
         print(f"程序启动失败: {e}")
         print("\n请检查以下事项：")
-        print("1. 确保已设置 DASHSCOPE_API_KEY 环境变量")
+        print("1. 确保已设置 ARK_API_KEY 环境变量")
         print("2. 确保网络连接正常")
         print("3. 确保 API 密钥有效且有足够权限")
         print("4. 确保已安装所有必需的依赖包（见 p30/requirements_p30.txt）")
